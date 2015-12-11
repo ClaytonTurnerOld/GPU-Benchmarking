@@ -1,0 +1,4 @@
+*.pkl*
+*.zip*
+*data/Nottingham/*
+*data/Nottingham
