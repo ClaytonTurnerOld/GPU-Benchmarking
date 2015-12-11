@@ -183,11 +183,9 @@ class SdA(object):
         # minibatch given by self.x and self.y
 
 	self.errors = self.logLayer.errors(self.y)
-	self.info = self.logLayer.info(self.sigmoid_layers[-1].output,self.y)
 	errors_printed = theano.printing.Print("self.errors: ")(self.errors)
         errors_printed = self.logLayer.errors(self.y)
 	errors = self.errors + errors_printed - errors_printed
-	print self.errors
 
     def pretraining_functions(self, train_set_x, batch_size):
         ''' Generates a list of functions, each of them implementing one
@@ -337,29 +335,13 @@ class SdA(object):
 	    #else:
 		#return [test_score_i(i) for i in xrange(n_test_batches-1)]
 
-        info_i = theano.function(
-            [index],
-            self.info,
-            givens={
-                self.x: test_set_x[
-                    index * batch_size: (index + 1) * batch_size
-                ],
-                self.y: test_set_y[
-                    index * batch_size: (index + 1) * batch_size
-                ]
-            },
-            name='info_i'
-        )
-
-        def info():
-	    return [info_i(i) for i in xrange(n_test_batches)]
-
-        return train_fn, valid_score, test_score, info
+        
+        return train_fn, valid_score, test_score
 
 
 def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
              pretrain_lr=0.001, training_epochs=1000,
-             dataset='sle.pkl.gz', batch_size=1):
+             dataset='mnist.pkl.gz', batch_size=1):
     """
 
     :type learning_rate: float
@@ -385,13 +367,10 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
     test_set_x, test_set_y = datasets[2]
-    pretrain_set_x = datasets[3]
     #print len(train_set_y.eval())
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0]
     n_train_batches /= batch_size
-    n_pretrain_batches = pretrain_set_x.get_value(borrow=True).shape[0]
-    n_pretrain_batches /= batch_size
     # numpy random generator
     # start-snippet-3
     numpy_rng = numpy.random.RandomState(89677)
@@ -412,7 +391,7 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
     print '... getting the pretraining functions'
     #pretraining_fns = sda.pretraining_functions(train_set_x=train_set_x,
     #                                            batch_size=batch_size)
-    pretraining_fns = sda.pretraining_functions(train_set_x=pretrain_set_x,
+    pretraining_fns = sda.pretraining_functions(train_set_x=train_set_x,
 						batch_size=batch_size)
     
 
@@ -428,7 +407,7 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
             # go through the training set
             c = []
             #for batch_index in xrange(n_train_batches):#xrange(131)
-	    for batch_index in xrange(n_pretrain_batches):
+	    for batch_index in xrange(n_train_batches):
                 c.append(pretraining_fns[i](index=batch_index,
                          corruption=corruption_levels[i],
                          lr=pretrain_lr))
@@ -443,7 +422,7 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
 
     # get the training, validation and testing function for the model
     print '... getting the finetuning functions'
-    train_fn, validate_model, test_model, info = sda.build_finetune_functions(
+    train_fn, validate_model, test_model = sda.build_finetune_functions(
         #datasets=datasets,
 	datasets=datasets[0:3],
         batch_size=batch_size,
@@ -497,7 +476,6 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
                     # save best validation score and iteration number
                     best_validation_loss = this_validation_loss
                     best_iter = iter
-                    results = info()
 
                     # test it on the test set
                     test_losses = test_model()
@@ -506,10 +484,6 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
                            'best model %f %%') %
                           (epoch, minibatch_index + 1, n_train_batches,
                            test_score * 100.))
-    import os
-    fname = os.path.expanduser("~/GPU-Benchmarking/results/theano_nn")
-    numpy.savetxt(fname+"_labels.txt", best_y_a)
-    numpy.savetxt(fname+"_p_values.txt", best_p_values_a)
     print "best logistic values:"
     
     end_time = time.clock()
@@ -527,4 +501,4 @@ def run_SdA(finetune_lr=0.1, pretraining_epochs=15,
 
 
 if __name__ == '__main__':
-    run_SdA(pretraining_epochs=15,training_epochs=10000,finetune_lr=.2)
+    run_SdA(pretraining_epochs=15,training_epochs=10000,dataset="../data/mnist.pkl.gz")

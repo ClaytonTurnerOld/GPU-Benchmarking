@@ -1,5 +1,4 @@
 """
-Adapted from: https://raw.githubusercontent.com/lisa-lab/DeepLearningTutorials/master/code/logistic_sgd.py
 This tutorial introduces logistic regression using Theano and stochastic
 gradient descent.
 
@@ -39,7 +38,7 @@ import cPickle
 import gzip
 import os
 import sys
-import time
+import timeit
 
 import numpy
 
@@ -82,7 +81,7 @@ class LogisticRegression(object):
             name='W',
             borrow=True
         )
-        # initialize the baises b as a vector of n_out 0s
+        # initialize the biases b as a vector of n_out 0s
         self.b = theano.shared(
             value=numpy.zeros(
                 (n_out,),
@@ -95,11 +94,11 @@ class LogisticRegression(object):
         # symbolic expression for computing the matrix of class-membership
         # probabilities
         # Where:
-        # W is a matrix where column-k represent the separation hyper plain for
+        # W is a matrix where column-k represent the separation hyperplane for
         # class-k
         # x is a matrix where row-j  represents input training sample-j
-        # b is a vector where element-k represent the free parameter of hyper
-        # plain-k
+        # b is a vector where element-k represent the free parameter of
+        # hyperplane-k
         self.p_y_given_x = T.nnet.softmax(T.dot(input, self.W) + self.b)
 
         # symbolic description of how to compute prediction as class whose
@@ -109,6 +108,9 @@ class LogisticRegression(object):
 
         # parameters of the model
         self.params = [self.W, self.b]
+
+        # keep track of model input
+        self.input = input
 
     def negative_log_likelihood(self, y):
         """Return the mean of the negative log-likelihood of the prediction
@@ -139,12 +141,8 @@ class LogisticRegression(object):
         # LP[n-1,y[n-1]]] and T.mean(LP[T.arange(y.shape[0]),y]) is
         # the mean (across minibatch examples) of the elements in v,
         # i.e., the mean log-likelihood across the minibatch.
-	#p_y_given_x_printed = theano.printing.Print("self.p_y_given_x: ")(self.p_y_given_x)
         return -T.mean(T.log(self.p_y_given_x)[T.arange(y.shape[0]), y])
         # end-snippet-2
-
-    def info(self, x, y):
-        return [T.nnet.softmax(T.dot(x, self.W) + self.b), self.y_pred, y]
 
     def errors(self, y):
         """Return a float representing the number of errors in the minibatch
@@ -155,7 +153,8 @@ class LogisticRegression(object):
         :param y: corresponds to a vector that gives for each example the
                   correct label
         """
-	        # check if y has same dimension of y_pred
+
+        # check if y has same dimension of y_pred
         if y.ndim != self.y_pred.ndim:
             raise TypeError(
                 'y should have the same shape as self.y_pred',
@@ -165,9 +164,6 @@ class LogisticRegression(object):
         if y.dtype.startswith('int'):
             # the T.neq operator returns a vector of 0s and 1s, where 1
             # represents a mistake in prediction
-	     #y_pred_printed = theano.printing.Print("self.y_pred: ")(self.y_pred)
-	     #y = y + y_pred_printed - y_pred_printed
-
             return T.mean(T.neq(self.y_pred, y))
         else:
             raise NotImplementedError()
@@ -183,15 +179,15 @@ def load_data(dataset):
     #############
     # LOAD DATA #
     #############
-    '''
+
     # Download the MNIST dataset if it is not present
     data_dir, data_file = os.path.split(dataset)
     if data_dir == "" and not os.path.isfile(dataset):
         # Check if dataset is in the data directory.
         new_path = os.path.join(
             os.path.split(__file__)[0],
-            #"..",
-            "datasets",
+            "..",
+            "data",
             dataset
         )
         if os.path.isfile(new_path) or data_file == 'mnist.pkl.gz':
@@ -204,14 +200,12 @@ def load_data(dataset):
         )
         print 'Downloading data from %s' % origin
         urllib.urlretrieve(origin, dataset)
-    '''
+
     print '... loading data'
 
     # Load the dataset
-    #dataset = 'datasets/mnist.pkl.gz'
     f = gzip.open(dataset, 'rb')
-    train_set, valid_set, test_set, pretrain_set = cPickle.load(f)
-    #train_set, valid_set, test_set = cPickle.load(f)
+    train_set, valid_set, test_set = cPickle.load(f)
     f.close()
     #train_set, valid_set, test_set format: tuple(input, target)
     #input is an numpy.ndarray of 2 dimensions (a matrix)
@@ -230,8 +224,6 @@ def load_data(dataset):
         variable) would lead to a large decrease in performance.
         """
         data_x, data_y = data_xy
-	#data_x = data_x.todense()
-	#print type(data_x)# == numpy.ndarray
         shared_x = theano.shared(numpy.asarray(data_x,
                                                dtype=theano.config.floatX),
                                  borrow=borrow)
@@ -248,23 +240,11 @@ def load_data(dataset):
         return shared_x, T.cast(shared_y, 'int32')
 
     test_set_x, test_set_y = shared_dataset(test_set)
-    #print "Length of test set",len(test_set_x)
     valid_set_x, valid_set_y = shared_dataset(valid_set)
     train_set_x, train_set_y = shared_dataset(train_set)
 
-    pretrain_x = pretrain_set[0]#.todense()
-    #from sklearn.decomposition import RandomizedPCA
-    #pca = RandomizedPCA(n_components=10)
-    #pca.fit(pretrain_x)
-    #pretrain_x = pca.transform(pretrain_x)
-    #print pretrain_x == 0
-    #pretrain_x[pretrain_x == 0] = 0.00001
-    #print pretrain_x == 0
-    pretrain_set_x = theano.shared(numpy.asarray(pretrain_x,
-						dtype=theano.config.floatX),
-					borrow=True)
     rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
-            (test_set_x, test_set_y),(pretrain_set_x)]
+            (test_set_x, test_set_y)]
     return rval
 
 
@@ -383,7 +363,7 @@ def sgd_optimization_mnist(learning_rate=0.13, n_epochs=1000,
 
     best_validation_loss = numpy.inf
     test_score = 0.
-    start_time = time.clock()
+    start_time = timeit.default_timer()
 
     done_looping = False
     epoch = 0
@@ -438,11 +418,15 @@ def sgd_optimization_mnist(learning_rate=0.13, n_epochs=1000,
                         )
                     )
 
+                    # save the best model
+                    with open('best_model.pkl', 'w') as f:
+                        cPickle.dump(classifier, f)
+
             if patience <= iter:
                 done_looping = True
                 break
 
-    end_time = time.clock()
+    end_time = timeit.default_timer()
     print(
         (
             'Optimization complete with best validation score of %f %%,'
@@ -455,6 +439,32 @@ def sgd_optimization_mnist(learning_rate=0.13, n_epochs=1000,
     print >> sys.stderr, ('The code for file ' +
                           os.path.split(__file__)[1] +
                           ' ran for %.1fs' % ((end_time - start_time)))
+
+
+def predict():
+    """
+    An example of how to load a trained model and use it
+    to predict labels.
+    """
+
+    # load the saved model
+    classifier = cPickle.load(open('best_model.pkl'))
+
+    # compile a predictor function
+    predict_model = theano.function(
+        inputs=[classifier.input],
+        outputs=classifier.y_pred)
+
+    # We can test it on some examples from test test
+    dataset='mnist.pkl.gz'
+    datasets = load_data(dataset)
+    test_set_x, test_set_y = datasets[2]
+    test_set_x = test_set_x.get_value()
+
+    predicted_values = predict_model(test_set_x[:10])
+    print ("Predicted values for the first 10 examples in test set:")
+    print predicted_values
+
 
 if __name__ == '__main__':
     sgd_optimization_mnist()
