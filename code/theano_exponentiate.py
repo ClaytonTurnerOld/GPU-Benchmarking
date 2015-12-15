@@ -6,7 +6,7 @@ import numpy
 from timeit import default_timer as timer # Since we need to use Python 2.7, this is a good alternative to Perfcounter
 
 vlen = 10 * 30 * 768  # 10 x #cores x # threads per core
-iters = 1000
+iters = 1000000
 
 # Keep consistent results with random seed
 rng = numpy.random.RandomState(42)

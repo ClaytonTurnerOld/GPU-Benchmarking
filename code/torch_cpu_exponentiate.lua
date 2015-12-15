@@ -1,6 +1,8 @@
 x = torch.rand(1,10*30*768)
 
-for i = 1, 1000 do
+iters = 1000000
+
+for i = 1, iters do
 	y = torch.exp(x)
 end
 

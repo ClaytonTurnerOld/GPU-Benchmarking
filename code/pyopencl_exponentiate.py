@@ -8,7 +8,7 @@ class CL(object):
         self.size = size
         self.ctx = cl.create_some_context()
         self.queue = cl.CommandQueue(self.ctx)
-        self.iters = 1000
+        self.iters = 1000000
  
     def load_program(self):
         # Using exponentiate instead of exp to avoid overloading/overriding
